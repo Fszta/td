@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -65,6 +64,7 @@ func (m Model) handleHistoryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "h", "esc":
 		m.showHistory = false
 		m.confirmHistoryDel = false
+		m.pendingResumeID = ""
 		return m, nil
 
 	case "?":
@@ -74,6 +74,7 @@ func (m Model) handleHistoryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "tab":
 		m.showHistory = false
 		m.confirmHistoryDel = false
+		m.pendingResumeID = ""
 		m.viewMode = viewSettings
 		m.confirmDelete = false
 		return m, nil
@@ -83,25 +84,52 @@ func (m Model) handleHistoryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.historyCursor++
 		}
 		m.confirmHistoryDel = false
+		m.pendingResumeID = ""
 
 	case "k", "up":
 		if m.historyCursor > 0 {
 			m.historyCursor--
 		}
 		m.confirmHistoryDel = false
+		m.pendingResumeID = ""
 
 	case "g":
 		m.historyCursor = 0
 		m.confirmHistoryDel = false
+		m.pendingResumeID = ""
 
 	case "G":
 		if len(m.historySessions) > 0 {
 			m.historyCursor = len(m.historySessions) - 1
 		}
 		m.confirmHistoryDel = false
+		m.pendingResumeID = ""
 
 	case "enter", "r":
-		return m.resumeHistorySession()
+		tr := m.selectedHistorySession()
+		if tr != nil && tr.Status == tracker.StatusRunning {
+			if m.pendingResumeID == tr.ID {
+				// Second press confirmed — proceed with resume.
+				m.pendingResumeID = ""
+				return m.resumeTrackerSession(tr)
+			}
+			// First press — require confirmation.
+			m.pendingResumeID = tr.ID
+			return m, nil
+		}
+		m.pendingResumeID = ""
+		return m.resumeTrackerSession(tr)
+
+	case "w":
+		m.pendingResumeID = ""
+		tr := m.selectedHistorySession()
+		if tr == nil || m.trackerStore == nil {
+			return m, nil
+		}
+		logPath := m.trackerStore.LogPath(tr.ID)
+		m.watchMode = true
+		m.watchModel = newWatchModel(tr, logPath, m.width, m.height)
+		return m, m.watchModel.init()
 
 	case "l", "L":
 		return m.openHistoryLog()
@@ -121,36 +149,13 @@ func (m Model) handleHistoryKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.confirmHistoryDel = true
+		m.pendingResumeID = ""
 		return m, nil
 
 	default:
 		return m, nil
 	}
 
-	return m, nil
-}
-
-func (m Model) resumeHistorySession() (tea.Model, tea.Cmd) {
-	tr := m.selectedHistorySession()
-	if tr == nil {
-		return m, nil
-	}
-	if tr.SessionID == "" {
-		m.err = fmt.Errorf("no Claude session to resume")
-		return m, nil
-	}
-	if tracker.IsProcessAlive(tr.PID) {
-		proc, _ := os.FindProcess(tr.PID)
-		if proc != nil {
-			_ = proc.Kill()
-		}
-	}
-	if err := resumeInITerm(tr); err != nil {
-		m.err = fmt.Errorf("resume: %w", err)
-	} else {
-		m.status = fmt.Sprintf("Resumed in iTerm (%s)", tr.RepoName)
-		m.err = nil
-	}
 	return m, nil
 }
 
@@ -184,13 +189,18 @@ func (m Model) renderHistorySidebar() string {
 		}
 	}
 
-	if m.confirmHistoryDel {
+	if m.pendingResumeID != "" {
+		lines = append(lines, "")
+		lines = append(lines, settingsDeleteWarn.Render("  ⚠ Session is running."))
+		lines = append(lines, settingsDeleteWarn.Render("  r again to confirm,"))
+		lines = append(lines, dimStyle.Render("  or w to watch."))
+	} else if m.confirmHistoryDel {
 		lines = append(lines, "")
 		lines = append(lines, settingsDeleteWarn.Render("  Delete session? D again"))
 	}
 
 	lines = append(lines, "")
-	lines = append(lines, dimStyle.Render("  Enter resume"))
+	lines = append(lines, dimStyle.Render("  Enter/r resume  w watch"))
 	lines = append(lines, dimStyle.Render("  L log  D remove"))
 	lines = append(lines, dimStyle.Render("  h hide"))
 
