@@ -23,7 +23,7 @@ func (s *Store) Poll(t *Task) {
 		}
 		return
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 512*1024), 512*1024)

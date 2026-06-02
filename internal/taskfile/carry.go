@@ -66,7 +66,7 @@ func findCarriedTasks(tasksDir, todayPath string) []Task {
 func findPreviousFile(tasksDir, todayPath string) string {
 	var files []string
 
-	filepath.WalkDir(tasksDir, func(path string, d fs.DirEntry, err error) error {
+	if err := filepath.WalkDir(tasksDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return nil
 		}
@@ -74,7 +74,9 @@ func findPreviousFile(tasksDir, todayPath string) string {
 			files = append(files, path)
 		}
 		return nil
-	})
+	}); err != nil {
+		return ""
+	}
 
 	if len(files) == 0 {
 		return ""
@@ -87,7 +89,7 @@ func findPreviousFile(tasksDir, todayPath string) string {
 func generateTemplate(date time.Time, carried []Task) string {
 	var b strings.Builder
 
-	b.WriteString(fmt.Sprintf("# %s\n", date.Format("Monday, January 2 2006")))
+	fmt.Fprintf(&b, "# %s\n", date.Format("Monday, January 2 2006"))
 
 	if len(carried) > 0 {
 		b.WriteString("\n## Carried over\n")

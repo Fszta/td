@@ -162,10 +162,10 @@ func (m Model) settingsView() string {
 	b.WriteString("\n\n")
 
 	configPath := config.ConfigPath()
-	b.WriteString(fmt.Sprintf("  %s %s\n", settingsLabel.Render("path"), settingsValue.Render(configPath)))
-	b.WriteString(fmt.Sprintf("  %s %s\n", settingsLabel.Render("tasks"), settingsValue.Render(m.cfg.TasksDir)))
-	b.WriteString(fmt.Sprintf("  %s %s\n", settingsLabel.Render("generic"), settingsValue.Render(m.cfg.GenericWorkspace)))
-	b.WriteString(fmt.Sprintf("  %s %s\n", settingsLabel.Render("model"), settingsValue.Render(m.cfg.AnthropicModel)))
+	fmt.Fprintf(&b, "  %s %s\n", settingsLabel.Render("path"), settingsValue.Render(configPath))
+	fmt.Fprintf(&b, "  %s %s\n", settingsLabel.Render("tasks"), settingsValue.Render(m.cfg.TasksDir))
+	fmt.Fprintf(&b, "  %s %s\n", settingsLabel.Render("generic"), settingsValue.Render(m.cfg.GenericWorkspace))
+	fmt.Fprintf(&b, "  %s %s\n", settingsLabel.Render("model"), settingsValue.Render(m.cfg.AnthropicModel))
 
 	if m.err != nil {
 		b.WriteString("\n" + errorStyle.Render("  "+m.err.Error()) + "\n")

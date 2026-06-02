@@ -208,7 +208,7 @@ func readWatchLines(logPath string, offset int64) (lines []string, newOffset int
 	if err != nil {
 		return nil, offset, true
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	// Detect log rotation: if file is smaller than our stored offset, start over.
 	if info, err := f.Stat(); err == nil && info.Size() < offset {

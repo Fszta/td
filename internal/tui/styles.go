@@ -59,7 +59,6 @@ var (
 )
 
 var (
-	helpFooter = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 	footerKey  = lipgloss.NewStyle().Foreground(lipgloss.Color("81")).Bold(true)
 	footerDesc = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 )

@@ -129,7 +129,7 @@ func (s *Store) Remove(id string) error {
 	defer s.mu.Unlock()
 	st := s.load()
 	delete(st.Tasks, id)
-	os.Remove(s.LogPath(id))
+	_ = os.Remove(s.LogPath(id))
 	return s.save(st)
 }
 

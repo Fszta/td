@@ -505,9 +505,9 @@ func (m Model) helpView() string {
 	for _, s := range sections {
 		b.WriteString(helpSection.Render("  "+s.name) + "\n")
 		for _, bind := range s.bindings {
-			b.WriteString(fmt.Sprintf("  %s  %s\n",
+			fmt.Fprintf(&b, "  %s  %s\n",
 				helpKey.Render(bind.key),
-				helpDesc.Render(bind.desc)))
+				helpDesc.Render(bind.desc))
 		}
 	}
 
@@ -532,7 +532,7 @@ func (m Model) scanInputView() string {
 	if inputLine == "" {
 		inputLine = dimStyle.Render("~/Development/...")
 	}
-	b.WriteString(fmt.Sprintf("  > %s", inputLine))
+	fmt.Fprintf(&b, "  > %s", inputLine)
 	b.WriteString(cursorStyle.Render("█") + "\n")
 
 	b.WriteString("\n  " + keyHint("Enter", "scan") + "  " + keyHint("Esc", "cancel") + "\n")
