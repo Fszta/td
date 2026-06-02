@@ -202,12 +202,19 @@ func (w WatchModel) renderStatusBar() string {
 }
 
 // readWatchLines reads new JSONL lines from logPath starting at offset, returning rendered display lines.
+// If the file has shrunk (e.g. log rotation), offset is reset to 0 and a notice line is prepended.
 func readWatchLines(logPath string, offset int64) (lines []string, newOffset int64, missing bool) {
 	f, err := os.Open(logPath)
 	if err != nil {
 		return nil, offset, true
 	}
 	defer f.Close()
+
+	// Detect log rotation: if file is smaller than our stored offset, start over.
+	if info, err := f.Stat(); err == nil && info.Size() < offset {
+		offset = 0
+		lines = append(lines, dimStyle.Render("--- log rotated, re-reading from start ---"))
+	}
 
 	if _, err := f.Seek(offset, io.SeekStart); err != nil {
 		return nil, offset, false
@@ -220,7 +227,7 @@ func readWatchLines(logPath string, offset int64) (lines []string, newOffset int
 
 	newOffset = offset + int64(len(data))
 
-	for _, raw := range strings.Split(string(data), "\n") {
+	for raw := range strings.SplitSeq(string(data), "\n") {
 		raw = strings.TrimSpace(raw)
 		if raw == "" {
 			continue
@@ -235,7 +242,7 @@ func readWatchLines(logPath string, offset int64) (lines []string, newOffset int
 func parseWatchLine(raw string) []string {
 	var ev watchEvent
 	if json.Unmarshal([]byte(raw), &ev) != nil {
-		return nil
+		return []string{watchFailStyle.Render("!") + " " + dimStyle.Render("[malformed event — could not parse JSON]")}
 	}
 
 	switch ev.Type {
@@ -262,7 +269,7 @@ func parseWatchLine(raw string) []string {
 			switch block.Type {
 			case "text":
 				if block.Text != "" {
-					for _, line := range strings.Split(strings.TrimRight(block.Text, "\n"), "\n") {
+					for line := range strings.SplitSeq(strings.TrimRight(block.Text, "\n"), "\n") {
 						if strings.TrimSpace(line) != "" {
 							out = append(out, "  "+line)
 						}

@@ -69,7 +69,11 @@ func TestParseWatchLine_resultFailure(t *testing.T) {
 }
 
 func TestParseWatchLine_invalidJSON(t *testing.T) {
-	if lines := parseWatchLine("not json"); lines != nil {
-		t.Fatalf("expected nil, got %v", lines)
+	lines := parseWatchLine("not json")
+	if len(lines) == 0 {
+		t.Fatal("expected a malformed-event indicator line, got nothing")
+	}
+	if !strings.Contains(lines[0], "malformed") {
+		t.Fatalf("expected malformed-event indicator, got %q", lines[0])
 	}
 }
