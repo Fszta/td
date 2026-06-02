@@ -83,11 +83,7 @@ func (c *Client) Route(taskText string, repos []config.Repo, mcps []config.MCP) 
 
 	var route RouteResult
 	if err := json.Unmarshal([]byte(result), &route); err != nil {
-		// Fallback: treat raw text as a repo name (backward compat)
-		if strings.EqualFold(result, "generic") {
-			return &RouteResult{Generic: true, Actionable: true}, nil
-		}
-		return &RouteResult{Repo: result, Actionable: true}, nil
+		return &RouteResult{Actionable: false, Missing: "routing response was not valid JSON"}, nil
 	}
 
 	// Normalise: a literal "generic" repo name is the generic workspace.

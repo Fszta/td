@@ -15,7 +15,7 @@ func (m Model) handlePickerKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
 		filtered := m.filteredRepos()
-		if len(filtered) == 0 {
+		if len(filtered) == 0 || m.pickerCursor >= len(filtered) {
 			return m, nil
 		}
 		repo := filtered[m.pickerCursor]
@@ -120,7 +120,7 @@ func (m Model) pickerView() string {
 	if inputLine == "" {
 		inputLine = dimStyle.Render("type to filter...")
 	}
-	b.WriteString(fmt.Sprintf("  > %s\n\n", inputLine))
+	fmt.Fprintf(&b, "  > %s\n\n", inputLine)
 
 	filtered := m.filteredRepos()
 	for i, r := range filtered {
@@ -151,10 +151,7 @@ func (m Model) pickerView() string {
 		}
 
 		nameWidth := lipgloss.Width(name)
-		pad := 24 - nameWidth
-		if pad < 2 {
-			pad = 2
-		}
+		pad := max(24-nameWidth, 2)
 
 		b.WriteString(cursor + name + strings.Repeat(" ", pad) + desc + "\n")
 	}
