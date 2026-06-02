@@ -115,7 +115,9 @@ Keybindings (in TUI):
   a       Cycle tag: none → agent → draft → none
   A       Assign @agent:repo with picker
   d       Dispatch @agent task to repo
-  h       Toggle sessions sidebar (resume past agent runs)
+  w       Watch session log (in-flight or selected dispatched task)
+  r       Resume in iTerm (two presses while session is running)
+  h       Toggle sessions sidebar (past agent runs)
   Tab     Toggle settings view (scan, manage repos)
   c       Open config file
   ?       Toggle help overlay

@@ -111,12 +111,16 @@ type Model struct {
 
 	doneExpanded bool
 
-	trackerStore     *tracker.Store
-	trackedTasks     map[string]*tracker.Task
-	showHistory      bool
-	historyCursor    int
+	trackerStore      *tracker.Store
+	trackedTasks      map[string]*tracker.Task
+	showHistory       bool
+	historyCursor     int
 	confirmHistoryDel bool
-	historySessions  []*tracker.Task
+	historySessions   []*tracker.Task
+	pendingResumeID   string
+
+	watchMode  bool
+	watchModel WatchModel
 }
 
 func NewModel(cfg *config.Config, filePath string, tasks []taskfile.Task, autoEdit bool) Model {
@@ -155,8 +159,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		if m.watchMode {
+			m.watchModel = m.watchModel.resize(msg.Width, msg.Height)
+		}
 		if m.showHistory && !m.canShowHistorySidebar() {
 			m.showHistory = false
+		}
+		return m, nil
+
+	case watchTickMsg:
+		if m.watchMode {
+			var cmd tea.Cmd
+			m.watchModel, cmd = m.watchModel.onTick()
+			return m, cmd
 		}
 		return m, nil
 
@@ -172,6 +187,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.showHelp = false
 			}
 			return m, nil
+		}
+		if m.watchMode {
+			if msg.String() == "q" || msg.String() == "esc" {
+				m.watchMode = false
+				return m, nil
+			}
+			var cmd tea.Cmd
+			m.watchModel, cmd = m.watchModel.handleKey(msg)
+			return m, cmd
 		}
 		if m.dispatch == dstateConfirm {
 			return m.handleDispatchKey(msg)
@@ -300,6 +324,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case trackerPollMsg:
 		m.trackedTasks = msg.tasks
 		m.refreshHistorySessions()
+		if m.watchMode && m.watchModel.task != nil {
+			if t, ok := msg.tasks[m.watchModel.task.ID]; ok {
+				m.watchModel.task = t
+			}
+		}
 		return m, m.scheduleTrackerTick()
 
 	case spinner.TickMsg:
@@ -347,19 +376,23 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.cursor < len(m.displayOrder)-1 {
 			m.cursor++
 		}
+		m.pendingResumeID = ""
 
 	case "k", "up":
 		if m.cursor > 0 {
 			m.cursor--
 		}
+		m.pendingResumeID = ""
 
 	case "G":
 		if len(m.displayOrder) > 0 {
 			m.cursor = len(m.displayOrder) - 1
 		}
+		m.pendingResumeID = ""
 
 	case "g":
 		m.cursor = 0
+		m.pendingResumeID = ""
 
 	case "e":
 		return m, m.openEditor()
@@ -391,6 +424,33 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case "w":
+		m.pendingResumeID = ""
+		if m.trackerStore == nil {
+			return m, nil
+		}
+		var tr *tracker.Task
+		if t := m.currentTask(); t != nil && t.Tag == taskfile.TagDispatched {
+			tr = m.trackerForTask(*t)
+		}
+		if tr == nil {
+			// No dispatched task selected: fall back to the most recently touched
+			// session so that pressing w from the task list always opens something
+			// useful when only one session is active.
+			for _, s := range m.trackerStore.ListRecent(1) {
+				tr = s
+				break
+			}
+		}
+		if tr == nil {
+			m.err = fmt.Errorf("no session to watch")
+			return m, nil
+		}
+		logPath := m.trackerStore.LogPath(tr.ID)
+		m.watchMode = true
+		m.watchModel = newWatchModel(tr, logPath, m.width, m.height)
+		return m, m.watchModel.init()
+
 	case "r":
 		t := m.currentTask()
 		if t == nil || t.Tag != taskfile.TagDispatched {
@@ -401,18 +461,11 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.err = fmt.Errorf("no session to resume")
 			return m, nil
 		}
-		if tracker.IsProcessAlive(tr.PID) {
-			proc, _ := os.FindProcess(tr.PID)
-			if proc != nil {
-				_ = proc.Kill()
-			}
+		m, ok := m.confirmResume(tr)
+		if !ok {
+			return m, nil
 		}
-		if err := resumeInITerm(tr); err != nil {
-			m.err = fmt.Errorf("resume: %w", err)
-		} else {
-			m.status = fmt.Sprintf("Resumed in iTerm (%s)", tr.RepoName)
-		}
-		return m, nil
+		return m.resumeTrackerSession(tr)
 
 	case "D", "ctrl+d":
 		t := m.currentTask()
@@ -830,4 +883,43 @@ func (m Model) trackerForTask(t taskfile.Task) *tracker.Task {
 		}
 	}
 	return nil
+}
+
+// confirmResume gates resume on running sessions: first press warns, second confirms.
+func (m Model) confirmResume(tr *tracker.Task) (Model, bool) {
+	if tr.Status != tracker.StatusRunning {
+		m.pendingResumeID = ""
+		return m, true
+	}
+	if m.pendingResumeID != tr.ID {
+		m.pendingResumeID = tr.ID
+		m.status = "Session running — press r again to confirm, or w to watch"
+		m.err = nil
+		return m, false
+	}
+	m.pendingResumeID = ""
+	return m, true
+}
+
+func (m Model) resumeTrackerSession(tr *tracker.Task) (tea.Model, tea.Cmd) {
+	if tr == nil {
+		return m, nil
+	}
+	if tr.SessionID == "" {
+		m.err = fmt.Errorf("no session to resume")
+		return m, nil
+	}
+	if tracker.IsProcessAlive(tr.PID) {
+		proc, _ := os.FindProcess(tr.PID)
+		if proc != nil {
+			_ = proc.Kill()
+		}
+	}
+	if err := resumeInITerm(tr); err != nil {
+		m.err = fmt.Errorf("resume: %w", err)
+	} else {
+		m.status = fmt.Sprintf("Resumed in iTerm (%s)", tr.RepoName)
+		m.err = nil
+	}
+	return m, nil
 }

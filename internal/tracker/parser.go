@@ -23,7 +23,7 @@ func (s *Store) Poll(t *Task) {
 		}
 		return
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	scanner := bufio.NewScanner(f)
 	scanner.Buffer(make([]byte, 512*1024), 512*1024)
@@ -53,12 +53,10 @@ func (s *Store) Poll(t *Task) {
 			t.DurationMs = ev.DurationMs
 			t.Turns = ev.NumTurns
 
-			if ev.Subtype == "success" && ev.StopReason == "end_turn" && len(ev.PermissionDenials) == 0 {
-				t.Status = StatusDone
-			} else if len(ev.PermissionDenials) > 0 {
+			if len(ev.PermissionDenials) > 0 {
 				t.Status = StatusNeedsInput
 				t.Error = "permission denied: " + ev.PermissionDenials[0]
-			} else if ev.Subtype != "success" {
+			} else if ev.Subtype != "success" && ev.Subtype != "" {
 				t.Status = StatusFailed
 				t.Error = ev.Subtype
 			} else {
@@ -86,7 +84,7 @@ func parseToolUse(ev *event, t *Task) {
 }
 
 func extractDetail(tool string, input json.RawMessage) string {
-	var m map[string]interface{}
+	var m map[string]any
 	if json.Unmarshal(input, &m) != nil {
 		return ""
 	}

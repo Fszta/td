@@ -7,10 +7,12 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"sync"
 	"syscall"
 )
 
 type Store struct {
+	mu  sync.Mutex
 	dir string
 }
 
@@ -65,6 +67,8 @@ func (s *Store) save(st *state) error {
 }
 
 func (s *Store) Register(t *Task) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	st := s.load()
 	st.Tasks[t.ID] = t
 	return s.save(st)
@@ -75,11 +79,15 @@ func (s *Store) Update(t *Task) error {
 }
 
 func (s *Store) Get(id string) *Task {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	st := s.load()
 	return st.Tasks[id]
 }
 
 func (s *Store) ActiveTasks() []*Task {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	st := s.load()
 	var active []*Task
 	for _, t := range st.Tasks {
@@ -91,12 +99,16 @@ func (s *Store) ActiveTasks() []*Task {
 }
 
 func (s *Store) AllTasks() map[string]*Task {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.load().Tasks
 }
 
 // ListRecent returns tasks sorted by StartedAt (newest first), capped at limit.
 // limit <= 0 means no cap.
 func (s *Store) ListRecent(limit int) []*Task {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	st := s.load()
 	all := make([]*Task, 0, len(st.Tasks))
 	for _, t := range st.Tasks {
@@ -113,9 +125,11 @@ func (s *Store) ListRecent(limit int) []*Task {
 
 // Remove deletes a tracker and its log file.
 func (s *Store) Remove(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	st := s.load()
 	delete(st.Tasks, id)
-	os.Remove(s.LogPath(id))
+	_ = os.Remove(s.LogPath(id))
 	return s.save(st)
 }
 

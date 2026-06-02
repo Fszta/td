@@ -165,10 +165,10 @@ func AppendRepos(repos []Repo) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	for _, r := range repos {
-		fmt.Fprintf(f, "\n[[repos]]\nname = %q\npath = %q\ndescription = %q\n", r.Name, r.Path, r.Description)
+		_, _ = fmt.Fprintf(f, "\n[[repos]]\nname = %q\npath = %q\ndescription = %q\n", r.Name, r.Path, r.Description)
 	}
 	return nil
 }

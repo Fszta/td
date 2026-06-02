@@ -26,7 +26,7 @@ func FindRepos(dir string) ([]string, error) {
 	}
 
 	var repos []string
-	filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+	if err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
@@ -42,7 +42,9 @@ func FindRepos(dir string) ([]string, error) {
 			repos = append(repos, path)
 		}
 		return nil
-	})
+	}); err != nil {
+		return nil, err
+	}
 
 	return repos, nil
 }
@@ -59,7 +61,7 @@ Output format:
 
 func DescribeRepos(paths []string, apiKey, model string) ([]Suggestion, error) {
 	var prompt strings.Builder
-	prompt.WriteString(fmt.Sprintf("Analyze these %d git repositories:\n\n", len(paths)))
+	fmt.Fprintf(&prompt, "Analyze these %d git repositories:\n\n", len(paths))
 
 	for i, p := range paths {
 		ctx := collectContext(p)
@@ -125,7 +127,7 @@ func SaveSelected(suggestions []Suggestion) error {
 
 func collectContext(repoPath string) string {
 	var ctx strings.Builder
-	ctx.WriteString(fmt.Sprintf("Path: %s\n", repoPath))
+	fmt.Fprintf(&ctx, "Path: %s\n", repoPath)
 
 	entries, err := os.ReadDir(repoPath)
 	if err == nil {
@@ -135,7 +137,7 @@ func collectContext(repoPath string) string {
 				names = append(names, e.Name())
 			}
 		}
-		ctx.WriteString(fmt.Sprintf("Files: %s\n", strings.Join(names, ", ")))
+		fmt.Fprintf(&ctx, "Files: %s\n", strings.Join(names, ", "))
 	}
 
 	for _, readme := range []string{"README.md", "readme.md", "README"} {
@@ -145,7 +147,7 @@ func collectContext(repoPath string) string {
 			if len(content) > 500 {
 				content = content[:500] + "..."
 			}
-			ctx.WriteString(fmt.Sprintf("README:\n%s\n", content))
+			fmt.Fprintf(&ctx, "README:\n%s\n", content)
 			break
 		}
 	}
@@ -157,7 +159,7 @@ func collectContext(repoPath string) string {
 			if len(content) > 300 {
 				content = content[:300] + "..."
 			}
-			ctx.WriteString(fmt.Sprintf("%s:\n%s\n", cfgFile, content))
+			fmt.Fprintf(&ctx, "%s:\n%s\n", cfgFile, content)
 			break
 		}
 	}

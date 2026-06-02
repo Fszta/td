@@ -327,7 +327,16 @@ Dispatch profiles:
 | MCP (`notion`, `linear`, …) | `generic_workspace` | MCP-focused prompt; deliverable in the external tool |
 | `generic` | `generic_workspace` | Files, research, bootstraps — no required MCP |
 
-The confirmation panel shows the target and path. Press `Enter` to launch headless `claude` (stream-json log under `~/.config/td/trackers/`). The task tag updates to `@dispatched`. Press `r` to resume in iTerm2.
+The confirmation panel shows the target and path. Press `Enter` to launch headless `claude` (stream-json log on disk; path below). The task tag updates to `@dispatched`.
+
+While a session is running:
+
+- **`w`** — watch the live stream-json log in the TUI (does not interrupt the agent)
+- **`r`** — resume in iTerm2 (kills the headless process; requires **two presses** while status is `running`)
+
+Open the sessions sidebar with **`h`** for the same shortcuts plus **`L`** (open raw log in your editor).
+
+Tracker logs live under `$(go env USERCONFIGDIR)/td/trackers/` on macOS that is `~/Library/Application Support/td/trackers/`.
 
 The dispatch flow requires:
 - At least one `[[repos]]`, `[[mcp]]`, or use of `generic` routing

@@ -50,13 +50,13 @@ func launchHeadless(store *tracker.Store, repoPath, repoName, taskText string, m
 	cmd.Stderr = logFile
 
 	if err := cmd.Start(); err != nil {
-		logFile.Close()
+		_ = logFile.Close()
 		return nil, err
 	}
 
 	go func() {
 		_ = cmd.Wait()
-		logFile.Close()
+		_ = logFile.Close()
 	}()
 
 	t := &tracker.Task{
