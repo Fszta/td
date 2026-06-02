@@ -17,6 +17,9 @@ func (m Model) View() string {
 	if m.showHelp {
 		return m.helpView()
 	}
+	if m.watchMode {
+		return m.watchModel.view()
+	}
 	if m.loading {
 		return m.loadingView()
 	}
@@ -364,10 +367,13 @@ func (m Model) renderFooter() string {
 			parts = append(parts, keyHint("d", fmt.Sprintf("dispatch(%d)", ac)))
 		}
 		parts = append(parts, keyHint("D", "delete"))
+		c := m.counts()
+		if c.inflight > 0 {
+			parts = append(parts, keyHint("w", "watch"))
+		}
 		if t := m.currentTask(); t != nil && t.Tag == taskfile.TagDispatched {
 			parts = append(parts, keyHint("r", "resume"))
 		}
-		c := m.counts()
 		if c.done > 0 {
 			if m.doneExpanded {
 				parts = append(parts, keyHint("v", "hide done"))
@@ -478,9 +484,10 @@ func (m Model) helpView() string {
 		{"Sessions (h)", []binding{
 			{"h", "toggle sessions sidebar"},
 			{"j / k", "select session"},
-			{"Enter / r", "resume in iTerm"},
-			{"L", "open session log"},
-			{"D", "remove session (twice)"},
+			{"w", "watch session log (read-only)"},
+			{"Enter / r", "resume in iTerm (guard on running)"},
+			{"L", "open session log in editor"},
+			{"D", "remove session (press twice)"},
 		}},
 		{"General", []binding{
 			{"Tab", "toggle settings view"},
