@@ -1,4 +1,8 @@
-.PHONY: build install clean lint test
+.PHONY: build install clean lint test hooks
+
+hooks:
+	git config core.hooksPath .githooks
+	@chmod +x .githooks/pre-commit
 
 build:
 	go build -o bin/td .
